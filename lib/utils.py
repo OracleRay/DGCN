@@ -50,9 +50,10 @@ def search_data(sequence_length, num_of_batches, label_start_idx,
     if len(x_idx) != num_of_batches:
         return None
 
-    return x_idx[::-1]#倒叙输出,符合时间的 顺序输出,这里不占用多少空间
+    return x_idx[::-1]  # 倒叙输出,符合时间的 顺序输出,这里不占用多少空间
 
 
+# 获得周、天、小时的样本数据
 def get_sample_indices(data_sequence, num_of_weeks, num_of_days, num_of_hours,
                        label_start_idx, num_for_predict, points_per_hour=12):
     '''
@@ -144,6 +145,7 @@ def get_adjacency_matrix(distance_df_filename, num_of_vertices):
     return A
 
 
+# 计算归一化拉普拉斯矩阵
 def scaled_Laplacian(W):
     '''
     compute \tilde{L}
@@ -163,9 +165,9 @@ def scaled_Laplacian(W):
     D = np.diag(np.sum(W, axis=1))
 
     L = D - W
-    
+
     lambda_max = eigs(L, k=1, which='LR')[0].real
-    
+
     return (2 * L) / lambda_max - np.identity(W.shape[0])
 
 
@@ -215,16 +217,16 @@ def compute_val_loss(net, val_loader, loss_function, supports, device, epoch):
     with torch.no_grad():
         tmp = []
         for index, (val_w, val_d, val_r, val_t) in enumerate(val_loader):
-            val_w=val_w.to(device)
-            val_d=val_d.to(device)
-            val_r=val_r.to(device)
-            val_t=val_t.to(device)
-            output,_,_ = net(val_w, val_d, val_r, supports)
+            val_w = val_w.to(device)
+            val_d = val_d.to(device)
+            val_r = val_r.to(device)
+            val_t = val_t.to(device)
+            output, _, _ = net(val_w, val_d, val_r, supports)
             l = loss_function(output, val_t)
             tmp.append(l.item())
-    
+
         validation_loss = sum(tmp) / len(tmp)
-    
+
         print('epoch: %s, validation loss: %.2f' % (epoch, validation_loss))
         return validation_loss
 
@@ -249,27 +251,26 @@ def predict(net, test_loader, supports, device):
     with torch.no_grad():
         prediction = []
         for index, (test_w, test_d, test_r, test_t) in enumerate(test_loader):
-            test_w=test_w.to(device)
-            test_d=test_d.to(device)
-            test_r=test_r.to(device)
-            test_t=test_t.to(device)
-            output,_,_=net(test_w, test_d, test_r, supports)
+            test_w = test_w.to(device)
+            test_d = test_d.to(device)
+            test_r = test_r.to(device)
+            test_t = test_t.to(device)
+            output, _, _ = net(test_w, test_d, test_r, supports)
             prediction.append(output.cpu().detach().numpy())
-     
-        #get first batch's spatial attention matrix    
+
+        # get first batch's spatial attention matrix
         for index, (test_w, test_d, test_r, test_t) in enumerate(test_loader):
-            test_w=test_w.to(device)
-            test_d=test_d.to(device)
-            test_r=test_r.to(device)
-            test_t=test_t.to(device)
-            _,spatial_at,temporal_at=net(test_w, test_d, test_r, supports)
-            spatial_at=spatial_at.cpu().detach().numpy()
-            temporal_at=temporal_at.cpu().detach().numpy()
+            test_w = test_w.to(device)
+            test_d = test_d.to(device)
+            test_r = test_r.to(device)
+            test_t = test_t.to(device)
+            _, spatial_at, temporal_at = net(test_w, test_d, test_r, supports)
+            spatial_at = spatial_at.cpu().detach().numpy()
+            temporal_at = temporal_at.cpu().detach().numpy()
             break
-        
-    
+
         prediction = np.concatenate(prediction, 0)
-        return prediction,spatial_at,temporal_at
+        return prediction, spatial_at, temporal_at
 
 
 def evaluate(net, test_loader, true_value, supports, device, epoch):
@@ -293,22 +294,21 @@ def evaluate(net, test_loader, true_value, supports, device, epoch):
     '''
     net.eval()
     with torch.no_grad():
-        prediction,_,_ = predict(net, test_loader, supports, device)
-    
-        #print(prediction.shape)
-        #prediction = (prediction.transpose((0, 2, 1))
-          #        .reshape(prediction.shape[0], -1))
+        prediction, _, _ = predict(net, test_loader, supports, device)
+
+        # print(prediction.shape)
+        # prediction = (prediction.transpose((0, 2, 1))
+        #        .reshape(prediction.shape[0], -1))
         for i in [3, 6, 12]:
             print('current epoch: %s, predict %s points' % (epoch, i))
 
             mae = mean_absolute_error(true_value[:, :, 0:i],
-                                  prediction[:, :, 0:i])
+                                      prediction[:, :, 0:i])
             rmse = mean_squared_error(true_value[:, :, 0:i],
-                                  prediction[:, :, 0:i]) ** 0.5
+                                      prediction[:, :, 0:i]) ** 0.5
             mape = masked_mape_np(true_value[:, :, 0:i],
-                              prediction[:, :, 0:i], 0)
+                                  prediction[:, :, 0:i], 0)
 
             print('MAE: %.2f' % (mae))
             print('RMSE: %.2f' % (rmse))
             print('MAPE: %.2f' % (mape))
-        

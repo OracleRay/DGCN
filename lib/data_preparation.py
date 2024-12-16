@@ -1,11 +1,12 @@
 # -*- coding:utf-8 -*-
 
 import numpy as np
-import mxnet as mx
+# import mxnet as mx
 
 from .utils import get_sample_indices
 
 
+# 归一化
 def normalization(train, val, test):
     '''
     Parameters
@@ -23,15 +24,17 @@ def normalization(train, val, test):
 
     assert train.shape[1:] == val.shape[1:] and val.shape[1:] == test.shape[1:]
 
-    mean = train.mean(axis=0, keepdims=True)
-    std = train.std(axis=0, keepdims=True)
+    # xis=0 表示沿第一个轴计算均值，keepdims=True 保持维度一致
+    mean = train.mean(axis=0, keepdims=True)  # 计算训练集的均值
+    std = train.std(axis=0, keepdims=True)  # 计算训练集的标准差
 
+    # 确保所有数据点的分布具有零均值和单位标准差
     def normalize(x):
         return (x - mean) / std
 
-    train = (train).transpose(0,2,1,3)
-    val = (val).transpose(0,2,1,3)
-    test =(test).transpose(0,2,1,3)
+    train = (train).transpose(0, 2, 1, 3)
+    val = (val).transpose(0, 2, 1, 3)
+    test = (test).transpose(0, 2, 1, 3)
 
     return {'mean': mean, 'std': std}, train, val, test
 
@@ -78,18 +81,19 @@ def read_and_generate_dataset(graph_signal_matrix_filename,
     split_line1 = int(len(all_samples) * 0.6)
     split_line2 = int(len(all_samples) * 0.8)
 
+    # 将训练集、验证集和测试集中的样本按特征拼接
     if not merge:
         training_set = [np.concatenate(i, axis=0)
-                        for i in zip(*all_samples[:split_line1])]
+                        for i in zip(*all_samples[:split_line1])]  # 划分训练集占60%
     else:
         print('Merge training set and validation set!')
         training_set = [np.concatenate(i, axis=0)
-                        for i in zip(*all_samples[:split_line2])]
+                        for i in zip(*all_samples[:split_line2])]  # 训练集和验证集共占80%
 
     validation_set = [np.concatenate(i, axis=0)
-                      for i in zip(*all_samples[split_line1: split_line2])]
+                      for i in zip(*all_samples[split_line1: split_line2])]  # 验证集占中间的20%
     testing_set = [np.concatenate(i, axis=0)
-                   for i in zip(*all_samples[split_line2:])]
+                   for i in zip(*all_samples[split_line2:])]  # 测试集占剩下的20%
 
     train_week, train_day, train_hour, train_target = training_set
     val_week, val_day, val_hour, val_target = validation_set
@@ -103,6 +107,7 @@ def read_and_generate_dataset(graph_signal_matrix_filename,
     print('testing data: week: {}, day: {}, recent: {}, target: {}'.format(
         test_week.shape, test_day.shape, test_hour.shape, test_target.shape))
 
+    # 归一化处理
     (week_stats, train_week_norm,
      val_week_norm, test_week_norm) = normalization(train_week,
                                                     val_week,
