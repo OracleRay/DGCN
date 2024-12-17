@@ -248,14 +248,18 @@ class T_cheby_conv_ds(nn.Module):
         L0 = torch.eye(nNode).repeat(nSample, 1, 1).cuda()
         Ls.append(L0)
         Ls.append(L1)
+
+        # 计算 Chebyshev 多项式 T_k
         for k in range(2, self.K):
             L2 = 2 * torch.matmul(adj, L1) - L0
             L0, L1 = L1, L2
             Ls.append(L2)
 
+        # 将所有的 Chebyshev 多项式堆叠起来
         Lap = torch.stack(Ls, 1)  # [B, K,nNode, nNode]
-        # print(Lap)
         Lap = Lap.transpose(-1, -2)
+
+        # 图卷积：将输入 x 与 Chebyshev 多项式 Lap 进行张量乘法
         x = torch.einsum('bcnl,bknq->bckql', x, Lap).contiguous()
         x = x.view(nSample, -1, nNode, length)
         out = self.conv1(x)
@@ -318,15 +322,22 @@ class SATT_2(nn.Module):
         return logits
 
 
+'''计算掩码矩阵，确定有效区域(1)、无效区域(0)'''
 A = np.zeros((60, 60))
+
+# 12×12的有效子区域，短时间窗口（如小时级别）的有效时间步
 for i in range(12):
     for j in range(12):
         A[i, j] = 1
         A[i + 12, j + 12] = 1
         A[i + 24, j + 24] = 1
+
+# 24×24的有效子区域，更长时间窗口（如一天）的有效时间步
 for i in range(24):
     for j in range(24):
         A[i + 36, j + 36] = 1
+
+# 将1转化为0，将0转化为非常小的负数
 B = (-1e13) * (1 - A)
 B = (torch.tensor(B)).type(torch.float32).cuda()
 
@@ -335,9 +346,9 @@ class TATT_1(nn.Module):
     def __init__(self, c_in, num_nodes, tem_size):
         super(TATT_1, self).__init__()
         self.conv1 = Conv2d(c_in, 1, kernel_size=(1, 1),
-                            stride=(1, 1), bias=False)
+                            stride=(1, 1), bias=False)  # 关注时间维度的特征变化
         self.conv2 = Conv2d(num_nodes, 1, kernel_size=(1, 1),
-                            stride=(1, 1), bias=False)
+                            stride=(1, 1), bias=False)  # 关注节点维度的特征变化
         self.w = nn.Parameter(torch.rand(num_nodes, c_in), requires_grad=True)
         nn.init.xavier_uniform_(self.w)
         self.b = nn.Parameter(torch.zeros(tem_size, tem_size), requires_grad=True)
@@ -353,6 +364,7 @@ class TATT_1(nn.Module):
         c2 = seq.permute(0, 2, 1, 3)  # b,c,n,l->b,n,c,l
         f2 = self.conv2(c2).squeeze()  # b,c,n
 
+        # 计算注意力分数
         logits = torch.sigmoid(torch.matmul(torch.matmul(f1, self.w), f2) + self.b)
         logits = torch.matmul(self.v, logits)
         ##normalization
@@ -363,7 +375,7 @@ class TATT_1(nn.Module):
 
         logits = logits.permute(0, 2, 1).contiguous()
         logits = self.bn(logits).permute(0, 2, 1).contiguous()
-        coefs = torch.softmax(logits + B, -1)
+        coefs = torch.softmax(logits + B, -1)  # 使用掩码矩阵，确保无效区域的注意力分数非常小（接近零）
         return coefs
 
 
@@ -389,31 +401,41 @@ class ST_BLOCK_2(nn.Module):
         x_input = self.conv1(x)
         x_1 = self.time_conv(x)
         x_1 = F.leaky_relu(x_1)
-        x_tem1 = x_1[:, :, :, 0:48]
-        x_tem2 = x_1[:, :, :, 48:60]
+        x_tem1 = x_1[:, :, :, 0:48]  # 前48个时间步
+        x_tem2 = x_1[:, :, :, 48:60]  # 后12个时间步
+
+        # 合并两个空间注意力
         S_coef1 = self.SATT_3(x_tem1)
-        # print(S_coef1.shape)
         S_coef2 = self.SATT_2(x_tem2)
-        # print(S_coef2.shape)
         S_coef = torch.cat((S_coef1, S_coef2), 1)  # b,l,n,c
+
         shape = S_coef.shape
-        # print(S_coef.shape)
         h = Variable(torch.zeros((1, shape[0] * shape[2], shape[3]))).cuda()
         c = Variable(torch.zeros((1, shape[0] * shape[2], shape[3]))).cuda()
         hidden = (h, c)
+
+        # 通过 LSTM 学习空间注意力的序列依赖
         S_coef = S_coef.permute(0, 2, 1, 3).contiguous().view(shape[0] * shape[2], shape[1], shape[3])
-        S_coef = F.dropout(S_coef, 0.5, self.training)  # 2020/3/28/22:17,试验下效果
+        S_coef = F.dropout(S_coef, 0.5, self.training)
         _, hidden = self.LSTM(S_coef, hidden)
         adj_out = hidden[0].squeeze().view(shape[0], shape[2], shape[3]).contiguous()
+
+        # 将动态更新的邻接矩阵与原始邻接矩阵相乘
         adj_out1 = (adj_out) * supports
+
         x_1 = F.dropout(x_1, 0.5, self.training)
-        x_1 = self.dynamic_gcn(x_1, adj_out1)
+        x_1 = self.dynamic_gcn(x_1, adj_out1)  # 图时间卷积
+
+        # 将图卷积输出拆分为滤波器和门控
         filter, gate = torch.split(x_1, [self.c_out, self.c_out], 1)
         x_1 = torch.sigmoid(gate) * F.leaky_relu(filter)
         x_1 = F.dropout(x_1, 0.5, self.training)
+
+        # 应用时间注意力
         T_coef = self.TATT_1(x_1)
         T_coef = T_coef.transpose(-1, -2)
         x_1 = torch.einsum('bcnl,blq->bcnq', x_1, T_coef)
+
         out = self.bn(F.leaky_relu(x_1) + x_input)
         return out, adj_out, T_coef
 

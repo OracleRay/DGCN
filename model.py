@@ -46,6 +46,7 @@ class ASTGCN_block(nn.Module):
         return x, d_adj, t_adj
 
 
+# 使用注意力拉普拉斯矩阵
 class ASTGCN(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, week, day, recent, K, Kt):
         super(ASTGCN, self).__init__()
@@ -65,6 +66,7 @@ class ASTGCN(nn.Module):
         return out, d_adj_r, t_adj_r
 
 
+# 使用残差拉普拉斯矩阵
 class DGCN_Res(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, week, day, recent, K, Kt):
         super(DGCN_Res, self).__init__()
@@ -111,6 +113,7 @@ class DGCN_Res(nn.Module):
         return x, d_adj, A
 
 
+# 使用掩码拉普拉斯矩阵
 class DGCN_Mask(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, week, day, recent, K, Kt):
         super(DGCN_Mask, self).__init__()
