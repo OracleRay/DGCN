@@ -278,21 +278,20 @@ class SATT_3(nn.Module):
 
     def forward(self, seq):
         shape = seq.shape
+        # 通道数（c_in）扩大到 12 倍，时间维度被缩小为原来的 1/12
         seq = seq.permute(0, 1, 3, 2).contiguous().view(shape[0], shape[1] * 12, shape[3] // 12, shape[2])
         seq = seq.permute(0, 1, 3, 2)
+
         shape = seq.shape
-        # b,c*12,n,l//12
+
+        # 输入通道缩小为原来的 1/4
         f1 = self.conv1(seq).view(shape[0], self.c_in // 4, 4, shape[2], shape[3]).permute(0, 3, 1, 4, 2).contiguous()
         f2 = self.conv2(seq).view(shape[0], self.c_in // 4, 4, shape[2], shape[3]).permute(0, 1, 3, 4, 2).contiguous()
 
         logits = torch.einsum('bnclm,bcqlm->bnqlm', f1, f2)
-        # a,_ = torch.max(logits, -1, True)
-        # logits = logits - a
-        # logits = logits.permute(0,2,1,3).contiguous()
-        # logits=self.bn(logits).permute(0,3,2,1).contiguous()
         logits = logits.permute(0, 3, 1, 2, 4).contiguous()
         logits = torch.sigmoid(logits)
-        logits = torch.mean(logits, -1)
+        logits = torch.mean(logits, -1)  # 求平均值
         return logits
 
 
@@ -312,10 +311,6 @@ class SATT_2(nn.Module):
         f2 = self.conv2(seq).view(shape[0], self.c_in // 4, 4, shape[2], shape[3]).permute(0, 1, 3, 4, 2).contiguous()
 
         logits = torch.einsum('bnclm,bcqlm->bnqlm', f1, f2)
-        # a,_ = torch.max(logits, -1, True)
-        # logits = logits - a
-        # logits = logits.permute(0,2,1,3).contiguous()
-        # logits=self.bn(logits).permute(0,3,2,1).contiguous()
         logits = logits.permute(0, 3, 1, 2, 4).contiguous()
         logits = torch.sigmoid(logits)
         logits = torch.mean(logits, -1)
@@ -420,7 +415,7 @@ class ST_BLOCK_2(nn.Module):
         _, hidden = self.LSTM(S_coef, hidden)
         adj_out = hidden[0].squeeze().view(shape[0], shape[2], shape[3]).contiguous()
 
-        # 将动态更新的邻接矩阵与原始邻接矩阵相乘
+        # 将动态更新的邻接矩阵adj_out(Ld)与残差邻接矩阵(Lres)相乘
         adj_out1 = (adj_out) * supports
 
         x_1 = F.dropout(x_1, 0.5, self.training)

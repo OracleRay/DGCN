@@ -205,7 +205,7 @@ class DGCN_GAT(nn.Module):
 class DGCN(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, week, day, recent, K, Kt):
         super(DGCN, self).__init__()
-        tem_size = week + day + recent
+        tem_size = week + day + recent   # 时间维度的长度
         self.block1 = ST_BLOCK_2(c_in, c_out, num_nodes, tem_size, K, Kt)
         self.block2 = ST_BLOCK_2(c_out, c_out, num_nodes, tem_size, K, Kt)
         self.bn = BatchNorm2d(c_in, affine=False)
@@ -219,6 +219,7 @@ class DGCN(nn.Module):
         self.conv4 = Conv2d(c_out, 1, kernel_size=(1, 2), padding=(0, 0),
                             stride=(1, 2), bias=True)
 
+        # 即公式中的Lpar
         self.h = Parameter(torch.zeros(num_nodes, num_nodes), requires_grad=True)
         nn.init.uniform_(self.h, a=0, b=0.0001)
 
@@ -226,7 +227,7 @@ class DGCN(nn.Module):
         x_w = self.bn(x_w)
         x_d = self.bn(x_d)
         x_r = self.bn(x_r)
-        x = torch.cat((x_w, x_d, x_r), -1)
+        x = torch.cat((x_w, x_d, x_r), -1)  # 合并周、天、最近时间步的特征
 
         A = self.h + supports
         d = 1 / (torch.sum(A, -1) + 0.0001)
