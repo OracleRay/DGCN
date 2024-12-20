@@ -186,7 +186,7 @@ class T_cheby_conv(nn.Module):
         out = self.conv1(x)
         return out
 
-
+# DGCN_mask和DGCN_res
 class ST_BLOCK_1(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, tem_size, K, Kt):
         super(ST_BLOCK_1, self).__init__()
