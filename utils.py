@@ -245,6 +245,8 @@ class T_cheby_conv_ds(nn.Module):
 
         Ls = []
         L1 = adj
+
+        # 创建一个 nNode × nNode 的对角矩阵，通道数重复 nSample 倍
         L0 = torch.eye(nNode).repeat(nSample, 1, 1).cuda()
         Ls.append(L0)
         Ls.append(L1)
