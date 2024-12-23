@@ -186,7 +186,7 @@ class T_cheby_conv(nn.Module):
         out = self.conv1(x)
         return out
 
-
+# DGCN_mask和DGCN_res
 class ST_BLOCK_1(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, tem_size, K, Kt):
         super(ST_BLOCK_1, self).__init__()
@@ -376,6 +376,7 @@ class TATT_1(nn.Module):
         return coefs
 
 
+# DGCN的时空块
 class ST_BLOCK_2(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, tem_size, K, Kt):
         super(ST_BLOCK_2, self).__init__()
@@ -474,6 +475,7 @@ class TATT_1_r(nn.Module):
         return coefs
 
 
+# 仅使用近期数据的时空块
 class ST_BLOCK_2_r(nn.Module):
     def __init__(self, c_in, c_out, num_nodes, tem_size, K, Kt):
         super(ST_BLOCK_2_r, self).__init__()
